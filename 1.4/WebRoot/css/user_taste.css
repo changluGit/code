@@ -1,0 +1,33 @@
+.tasteBody {
+	height:auto;
+	display:inline-block;
+}
+.tasteFont {
+	font-size: 20px;
+	font-weight: bold;
+	color:darkslategrey;
+	margin:25px 0px;
+}
+.tasteBox{
+	width:500px;
+	height:auto;
+	display: inline-block;
+	color:#426AB3;
+}
+.taste{
+	font-weight: bold;
+	float: left;
+	font-size:15px;
+	width:100px;
+	padding: 5px 5px;
+	cursor: pointer;
+}
+.tasteDetail{
+	text-align: center;
+	color:#426AB3;
+	width:70px;
+	background-color:white;
+	padding: 3px 0px;
+	border: 1px solid #426AB3;
+	border-radius: 10px;
+}

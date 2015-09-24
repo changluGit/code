@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE struts PUBLIC
+    "-//Apache Software Foundation//DTD Struts Configuration 2.3//EN"
+    "http://struts.apache.org/dtds/struts-2.3.dtd">
+
+<struts>
+
+	<constant name="struts.custom.i18n.resources" value="message" />
+
+	<constant name="struts.i18n.encoding" value="gbk"></constant>
+
+	<!-- 上传过程中临时文件存放目录 -->
+	<constant name="struts.multipart.saveDir" value="d:\"></constant>
+
+	<package name="upload" namespace="/core" extends="order_default">
+
+		<action name="upload" class="com.six.action.UploadAction">
+			<result name="success">/uploadtest.jsp</result>
+			<result name="input">/index.jsp</result>
+			<!-- 定义文件上传拦截器 -->
+			<interceptor-ref name="fileUpload">
+				<!-- 设置文件上传大小 -->
+				<param name="maximumSize">1048576</param>
+				<!-- 设置文件上传类型 <param name="allowedTypes"> application/vnd.ms-powerpoint 
+					</param> -->
+			</interceptor-ref>
+			<!-- 自定义了拦截器后必手动定义默认的拦截器，否则默认的拦截器不会被执行 -->
+			<interceptor-ref name="defaultStack"></interceptor-ref>
+		</action>
+		
+		
+		<!-- 菜品管理 -->
+		<action name="dishes_*" class="com.six.action.DishesManageAction" method="{1}">
+			<result name="input">/WEB-INF/jsp/dishesManage.jsp</result>
+		</action>
+		<!-- 菜品类别管理 -->
+		<action name="category_*" class="com.six.action.DishesCategoryAction" method="{1}">
+		</action>
+		
+	</package>
+
+</struts>

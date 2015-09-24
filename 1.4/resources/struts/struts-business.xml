@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<!DOCTYPE struts PUBLIC  
+    "-//Apache Software Foundation//DTD Struts Configuration 2.3//EN"  
+    "http://struts.apache.org/dtds/struts-2.3.dtd">  
+      
+<struts>  
+    <package name="order_business" namespace="/business" extends="order_default">  
+    
+    	<!-- 配置 示例 
+    	<action name="login_*" class="com.gyz.action.LoginAction" method="{1}">
+      		<result name="input">/jsp/login.jsp</result>
+      	</action> -->
+     
+     	<action name="busLogin_*" class="com.six.action.loginAndRigister.BusinessmanLoginAction" method="{1}">
+			<result name="businessManage">/WEB-INF/jsp/businessManage/businessManageHome.jsp</result>
+     	</action>
+     	<!-- 商家个人信息 -->
+     	<action name="business_*" class="com.six.action.businessman.BusinessInfoAction" method="{1}">
+			<result name="info">/WEB-INF/jsp/businessManage/businessmanInfo.jsp</result>
+     	</action>
+     	<!-- 商家个人信息修改 -->
+     	<action name="businessM_*" class="com.six.action.businessman.BusinessModifyAction" method="{1}">
+			<result name="input">/WEB-INF/jsp/businessManage/businessmanMofidy.jsp</result>
+			<result name="name">/WEB-INF/jsp/businessManage/businessmanMofidy.jsp</result>
+			<result name="email">/WEB-INF/jsp/businessManage/businessmanMofidy.jsp</result>
+			<result name="idcard">/WEB-INF/jsp/businessManage/businessmanMofidy.jsp</result>
+			
+			<result name="tel">/WEB-INF/jsp/businessManage/businessmanMofidy.jsp</result>
+			<result name="store">/WEB-INF/jsp/businessManage/businessmanMofidy.jsp</result>
+			<result name="pwd">/WEB-INF/jsp/businessManage/businessmanMofidy.jsp</result>
+     	</action>
+     	<!-- Store信息修改 -->
+     	<action name="store_*" class="com.six.action.businessman.StoreAction" method="{1}">
+			<result name="showstore">/WEB-INF/jsp/businessManage/storeManage.jsp</result>
+			<result name="success">/WEB-INF/jsp/businessManage/storeManage.jsp</result>
+     	</action>
+     	<!-- Store状态修改 -->
+     	<action name="state_*" class="com.six.action.businessman.StoreStateAction" method="{1}">
+			<result name="state">/WEB-INF/jsp/businessManage/storeManage.jsp</result>
+     	</action>
+     	
+     	<!-- 订单管理 -->
+     	<action name="orderM_*" class="com.six.action.businessManage.OrderManageAction" method="{1}">
+     		<result name="orderMpage">/WEB-INF/jsp/businessManage/orderManage.jsp</result>
+     	</action>
+     	
+     	<!-- 订单评价 -->
+     	<action name="orderEvaluate_*" class="com.six.action.OrderEvaluateAction" method="{1}">
+			<result name="replyPage">/WEB-INF/jsp/businessManage/reply.jsp</result>
+     	</action>
+     	
+     	<!-- 商品类别 -->
+     	<action name="dishesCategory_*" class="com.six.action.DishesCategoryAction" method="{1}">
+			<result name="dishesCategoryPage">/WEB-INF/jsp/businessManage/dishesCategory.jsp</result>
+     	</action>
+     	
+     	<!-- 未确定订单的轮训 -->
+     	<action name="noConfirm_*" class="com.six.action.businessManage.NoConfirmOrderAction" method="{1}">
+			<result name="dishesCategoryPage">/WEB-INF/jsp/businessManage/dishesCategory.jsp</result>
+     	</action>
+     	
+     	
+    </package>  
+     
+</struts>   

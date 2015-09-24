@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<!DOCTYPE struts PUBLIC  
+    "-//Apache Software Foundation//DTD Struts Configuration 2.3//EN"  
+    "http://struts.apache.org/dtds/struts-2.3.dtd">  
+      
+<struts>
+
+    <package name="order_core" namespace="/core" extends="order_default">  
+    
+    	<!-- 配置 示例 
+    	<action name="login_*" class="com.gyz.action.LoginAction" method="{1}">
+      		<result name="input">/jsp/login.jsp</result>
+      	</action> 
+      	-->
+     
+
+      <action name="address_*" class="com.six.action.AddressManageAction" method="{1}"></action>
+
+      <action name="test_*" class="com.six.action.TestAction" method="{1}">
+      	<result name="input">/WEB-INF/jsp/personal-center.jsp</result>
+      </action>
+
+
+      <!-- 收藏店铺、菜品action -->
+       <action name="storeadd" class="com.six.action.CollectStoreAndVegAction" method="addCollectStore">
+      </action>
+       <action name="vegadd" class="com.six.action.CollectStoreAndVegAction" method="addCollectVeg">
+      </action>
+      <action name="storecollect" class="com.six.action.CollectStoreAndVegAction" method="findCollectStore">
+       <result name="success">/WEB-INF/jsp/storecollect.jsp</result>
+      
+      </action>
+       <action name="vegcollect" class="com.six.action.CollectStoreAndVegAction" method="findCollectVeg">
+       <result name="success">/WEB-INF/jsp/vegcollect.jsp</result>
+      
+      </action>
+      <action name="storedelete" class="com.six.action.CollectStoreAndVegAction" method="deleteCollectStore">
+       <result type="redirectAction">
+       <param name="actionName">storecollect</param>
+       </result>
+       </action>
+        <action name="vegdelete" class="com.six.action.CollectStoreAndVegAction" method="deleteCollectVeg">
+       <result type="redirectAction">
+       <param name="actionName">vegcollect</param>
+       </result>
+      </action>
+
+
+	<!-- 用户投诉action -->
+     <action name="complaint_*" class="com.six.action.ComplaintAction" method="{1}"> 
+            <result name="input">/WEB-INF/jsp/Complaint.jsp</result>
+     </action> 
+     
+     <!-- 用户信息修改action -->
+     <action name="userInfo_*" class="com.six.action.UserInfoAction" method="{1}"> 
+            <result name="input">/WEB-INF/jsp/user_info.jsp</result>
+     </action> 
+     
+
+      <action name="order_*" class="com.six.action.OrderAction" method="{1}">
+      	<result name="orderPage">/WEB-INF/jsp/order.jsp</result>
+      </action>
+      <action name="orderEvaluate_*" class="com.six.action.OrderEvaluateAction" method="{1}"></action>
+      <action name="collection_*" class="com.six.action.CollectionAction" method="{1}"></action>
+     
+     <action name="show1_*" class="com.six.action.store.StoreShowAction" method="{1}">
+     		<result name="home">/WEB-INF/jsp/home.jsp</result>
+     		<result name="store">/WEB-INF/jsp/store.jsp</result>
+     	</action>
+
+		<!-- 用户口味 -->
+		<action name="userTaste_*" class="com.six.action.UserTasteAction" method="{1}">
+			<result name="userTastePage">/WEB-INF/jsp/userTaste.jsp</result>
+		</action>
+		
+		<!-- 忘记密码action -->
+      	<action name="forget_*" class="com.six.action.loginAndRigister.ForgetAction" method="{1}">
+     		<result name="forget">/WEB-INF/jsp/login.jsp</result>
+      	</action>  
+      	 
+      	<!-- 登录action -->
+      	<action name="login_*" class="com.six.action.loginAndRigister.LoginAction" method="{1}">
+      		<result name="personPage">/WEB-INF/jsp/personalCenter.jsp</result>
+      	</action>
+      	
+      	<!-- 用户注册 -->
+      	<action name="register_*" class="com.six.action.loginAndRigister.RegisterAction" method="{1}"></action>
+	
+	 <action name="goto_*" class="com.six.action.GotoAction" method="{1}">
+     		<result name="home">/WEB-INF/jsp/home.jsp</result>
+     		<result name="unRegisterIndex">/unRegisterIndex.jsp</result>
+     	</action>
+	
+    </package>  
+</struts>   

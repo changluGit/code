@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<!DOCTYPE struts PUBLIC  
+    "-//Apache Software Foundation//DTD Struts Configuration 2.3//EN"  
+    "http://struts.apache.org/dtds/struts-2.3.dtd">  
+      
+<struts>  
+    <package name="order_store" namespace="/store" extends="order_default">  
+    
+    	<!-- 配置 示例 
+    	<action name="login_*" class="com.gyz.action.LoginAction" method="{1}">
+      		<result name="input">/jsp/login.jsp</result>
+      	</action> -->
+     	
+     	<action name="show_*" class="com.six.action.store.StoreShowAction" method="{1}">
+     		<result name="home">/WEB-INF/jsp/home.jsp</result>
+     		<result name="store">/WEB-INF/jsp/store.jsp</result>
+     	</action>
+     	
+     	<action name="dish_*" class="com.six.action.store.DishesAction" method="{1}">
+     	
+     	</action>
+     	
+     	<action name="car_*" class="com.six.action.store.ShoppingCarAction" method="{1}">
+     		<result name="orderConfirm">/WEB-INF/jsp/orderConfirm.jsp</result>
+     	</action>
+     	
+     	<action name="comment_*" class="com.six.action.store.StoreCommentShowAction" method="{1}">
+     		
+     	</action>
+    </package>  
+</struts>   

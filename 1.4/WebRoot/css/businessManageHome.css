@@ -1,0 +1,105 @@
+body{
+	margin: 0px;
+}
+
+#module {
+	margin-left: 10px;
+	width: 200px;
+	min-height: 500px;
+}
+
+#main_west{
+	min-height: 540px;
+}
+#main_center{
+	min-height: 650px;
+}
+
+#storeName{
+	
+	width: 200px;
+	height: 60px;
+	line-height:60px;
+	text-align:center;
+	font-size: 26px;
+	color: white;
+	
+}
+#ulDiv{
+	
+	margin-top: 50px;
+}
+.module_ul{
+	list-style-type: none;
+	padding: 0px;
+}
+
+.module_ul li{
+	width: 200px;
+	height: 40px;
+	line-height: 40px;
+	text-align: center;
+	background: #EDEDED;
+	font-size: 23px;
+	
+	margin-bottom: 10px;
+	cursor: pointer;
+	
+	color: #858585;
+}
+
+.module_ul li:HOVER {
+	color: #8D03B0;
+}
+
+#north{
+	
+	height: 70px;
+	background-color: #4C5456;
+	color: white;
+}
+
+#systemName{
+	
+	background-color: #2FA3B0;
+	width: 200px;
+	height: 70px;
+	line-height: 70px;
+	text-align: center;
+	
+	font-size: 23px;
+	float: left;
+	
+}
+
+#headImg{
+	height:70px;
+	float: right;
+}
+#busName{
+	margin-left:10px;
+	height: 70px;
+	line-height: 70px;
+	float: right;
+	font-size: 23px;
+	margin-right: 20px;
+}
+
+#open,#close{
+	
+	width: 100px;
+	height: 70px;
+	line-height: 70px;
+	color: white;
+	font-size: 23px;
+	text-align:center;
+	float: right;
+	margin-right:20px;
+	background-color: #2FA3B0;
+}
+#open:HOVER {
+	cursor: pointer;
+}
+#close:HOVER {
+	cursor: pointer;
+}
