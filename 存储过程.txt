@@ -1,0 +1,575 @@
+CREATE OR REPLACE PACKAGE BODY PKG_CDP_ABILITY_STANDARD IS
+
+
+   --每天凌晨5点运行
+   PROCEDURE SP_ABILITY_STANDARD_MAIN_PROC IS
+   BEGIN
+     ABILITY_STANDARD_TRANSIT_PROC;
+     ABILITY_STANDARD_BATCH_PROC;
+     CDP_ABILITY_BATCH_PROC(-1, -1);
+     CDP_ABILITY_DEPT_PROC(-1, -1);
+   END;
+
+
+  /**
+  *中转能力标准_中转场
+  */
+  PROCEDURE ABILITY_STANDARD_TRANSIT_PROC IS
+    LOG_ID      NUMBER; -- 日志流水号
+    LINE_NO_LOG NUMBER := 0; -- 日志行号
+    CALL_SNO    NUMBER; --日志调用序号
+  BEGIN
+    SELECT SEQ_LOG.NEXTVAL INTO LOG_ID FROM DUAL;
+    SELECT SEQ_RUNNING_LOG.NEXTVAL INTO CALL_SNO FROM DUAL;
+    --记录开始执行日志
+    STP_RUNNING_LOG(LOG_ID, --流水号
+                    NULL, --包名
+                    'ABILITY_STANDARD_TRANSIT_PROC', --过程名
+                    '中转能力标准_中转场', --异常描述
+                    'BEGIN', --异常备注：BEGIN表示开始 END表示结束
+                    LINE_NO_LOG, --异常行号
+                    CALL_SNO, --调用序号
+                    SYSDATE, --异常时间
+                    NULL, --异常代码
+                    NULL); --邮件接收地址
+
+   -- 清空原有数据
+   -- 清空原有数据
+   DELETE FROM TT_BI_ABILITY_STANDARD_TRANSIT;
+
+   INSERT INTO TT_BI_ABILITY_STANDARD_TRANSIT
+    (HQ_CODE, -- 经营本部
+     AREA_CODE, -- 地区
+     DEPT_CODE, -- 网点代码
+     POLL_ABILITY, -- 大件处理能力（大件+小件包）
+     TRANSIT_POLL_ABILITY, -- 中转场大件处理能力（大件+小件包）
+     DATA_TM -- 传数时间
+     )
+    select hq_code,
+           area_code,
+           DEPT_CODE, --  中转班次归属的网点代码
+           POLL_HOUR_ABILITY, -- 小时设计处理票数
+           TRANSIT_POLL_ABILITY,
+           sysdate
+     from (
+            SELECT distinct d.hq_code,
+                             d.area_code,
+                             t.DEPT_CODE, --  中转班次归属的网点代码
+                             t.POLL_HOUR_ABILITY, -- 小时设计处理票数
+                             (t.POLL_HOUR_ABILITY * 24) as TRANSIT_POLL_ABILITY,
+                             row_number() over(partition by t.DEPT_CODE order by t.transit_dt desc nulls last,t.poll_hour_ability desc nulls last) rn
+              FROM TI_TRANSIT_SHIPMENT t
+              LEFT JOIN tm_department d on (t.dept_code = d.dept_code)
+     )
+     where rn = 1;
+    COMMIT;
+
+    --记录结束执行日志
+    SELECT SEQ_LOG.NEXTVAL INTO LOG_ID FROM DUAL;
+    LINE_NO_LOG := 1; --添加日志行号
+    STP_RUNNING_LOG(LOG_ID, --流水号
+                    NULL, --包名
+                    'ABILITY_STANDARD_TRANSIT_PROC', --过程名
+                    '中转能力标准_中转场', --异常描述
+                    'END', --异常备注：BEGIN表示开始 END表示结束
+                    LINE_NO_LOG, --异常行号
+                    CALL_SNO, --调用序号
+                    SYSDATE, --异常时间
+                    NULL, --异常代码
+                    NULL); --邮件接收地址
+  EXCEPTION
+    WHEN OTHERS THEN
+      ROLLBACK;
+      --记录执行发生异常日志
+      SELECT SEQ_LOG.NEXTVAL INTO LOG_ID FROM DUAL;
+      STP_RUNNING_LOG(LOG_ID, --流水号
+                      NULL, --包名
+                      'ABILITY_STANDARD_TRANSIT_PROC', --过程名
+                      SQLERRM, --异常描述
+                      'ERROR', --异常备注：BEGIN表示开始 END表示结束
+                      LINE_NO_LOG, --异常行号
+                      CALL_SNO, --调用序号
+                      SYSDATE, --异常时间
+                      SQLCODE, --异常代码
+                      'WANGXIAOLONG6@SF-EXPRESS.COM'); --邮件接收地址
+  END;
+
+  /**
+  *中转能力标准_班次
+  */
+  PROCEDURE ABILITY_STANDARD_BATCH_PROC IS
+    LOG_ID           NUMBER; -- 日志流水号
+    LINE_NO_LOG      NUMBER := 0; -- 日志行号
+    CALL_SNO         NUMBER; --日志调用序号
+  BEGIN
+    SELECT SEQ_LOG.NEXTVAL INTO LOG_ID FROM DUAL;
+    SELECT SEQ_RUNNING_LOG.NEXTVAL INTO CALL_SNO FROM DUAL;
+    --记录开始执行日志
+    STP_RUNNING_LOG(LOG_ID, --流水号
+                    NULL, --包名
+                    'ABILITY_STANDARD_BATCH_PROC', --过程名
+                    '中转能力标准_班次', --异常描述
+                    'BEGIN', --异常备注：BEGIN表示开始 END表示结束
+                    LINE_NO_LOG, --异常行号
+                    CALL_SNO, --调用序号
+                    SYSDATE, --异常时间
+                    NULL, --异常代码
+                    NULL); --邮件接收地址
+
+    /**
+    *  处理中转能力标准_班次
+    */
+    -- 获取当前使用工作日所有要更新的记录,无则添加有则修改
+    MERGE
+    INTO TT_BI_ABILITY_STANDARD_BATCH tt
+     USING (
+         WITH NEW_BT AS (
+             select temp.*, -- 给班次编码和对应工作日编号确保获取唯一一条
+                    row_number() over(partition by temp.batch_code, temp.BATCH_DT order by temp.TRANSIT_DT desc nulls last) rn
+               from (SELECT DECODE(TO_CHAR(T.TRANSIT_DT, 'D') - 1,
+                                   '0',
+                                   '7',
+                                   TO_CHAR(T.TRANSIT_DT, 'D') - 1) BATCH_DT,
+                            D.HQ_CODE,
+                            D.AREA_CODE,
+                            T.DEPT_CODE,
+                            TO_NUMBER(TO_CHAR(T.LAST_END_TM,'HH24MI')) LAST_END_TM, -- 上一班次计划结束时间
+                            T.BATCH_CODE, -- 班次编码
+                            TO_NUMBER(TO_CHAR(T.PLAN_START_TM,'HH24MI')) PLAN_START_TM, -- 计划开始时间
+                            TO_NUMBER(TO_CHAR(T.PLAN_END_TM,'HH24MI')) PLAN_END_TM, --计划结束时间
+                            T.BATCH_SHIPMENT, -- 班次最大装车票数
+                            T.TRANSIT_DT, -- 班次最大装车票数归属日期
+                            CEIL( --(T.PLAN_END_TM - T.PLAN_START_TM) * 24 *
+                                 TRANSIT.POLL_ABILITY) BATCH_POLL_ABILITY, -- 班次大件处理能力（大件+小件包） = 小时设计处理票数*（计划结束时间-计划开始时间）
+                            T.POLL_PIECE_RATIO, -- 票件比
+                            T.DATA_TM
+                       FROM TI_TRANSIT_SHIPMENT T
+                       LEFT JOIN TM_DEPARTMENT D ON (T.DEPT_CODE = D.DEPT_CODE)
+                       LEFT JOIN TT_BI_ABILITY_STANDARD_TRANSIT TRANSIT ON (T.DEPT_CODE = TRANSIT.DEPT_CODE)
+                      WHERE T.DATA_TM >= TRUNC(SYSDATE)
+                        and T.DATA_TM < TRUNC(SYSDATE) + 1) temp
+        )
+        SELECT NEW_BT.BATCH_DT,
+                NEW_BT.HQ_CODE,
+                NEW_BT.AREA_CODE,
+                NEW_BT.DEPT_CODE,
+                NEW_BT.LAST_END_TM, -- 上一班次计划结束时间
+                NEW_BT.BATCH_CODE, -- 班次编码
+                NEW_BT.PLAN_START_TM, -- 计划开始时间
+                NEW_BT.PLAN_END_TM, --计划结束时间
+                NEW_BT.BATCH_POLL_ABILITY, -- 班次大件处理能力（大件+小件包）
+                NEW_BT.POLL_PIECE_RATIO, -- 票件比
+                CASE  -- 比对上一班次计划结束时间、计划开始时间、计划结束时间三个字段，若相同则取最大的装车票数
+                  WHEN (
+                        NEW_BT.LAST_END_TM = OLD_BT.LAST_END_TM
+                        AND NEW_BT.PLAN_START_TM = OLD_BT.PLAN_START_TM
+                        AND NEW_BT.PLAN_END_TM = OLD_BT.PLAN_END_TM
+                        AND NEW_BT.BATCH_SHIPMENT  < OLD_BT.MAX_LOAD_CNT
+                        ) THEN
+
+                       OLD_BT.MAX_LOAD_CNT
+                  ELSE
+                       NEW_BT.BATCH_SHIPMENT
+                END MAX_LOAD_CNT,
+                CASE -- 班次最大装车票数产生日期
+                  WHEN (
+                        NEW_BT.LAST_END_TM = OLD_BT.LAST_END_TM
+                        AND NEW_BT.PLAN_START_TM = OLD_BT.PLAN_START_TM
+                        AND NEW_BT.PLAN_END_TM = OLD_BT.PLAN_END_TM
+                        AND NEW_BT.BATCH_SHIPMENT  < OLD_BT.MAX_LOAD_CNT
+                       ) THEN
+                       OLD_BT.MAX_BATCH_DATE
+                  ELSE
+                       NEW_BT.TRANSIT_DT
+                END MAX_BATCH_DATE
+        FROM NEW_BT LEFT JOIN TT_BI_ABILITY_STANDARD_BATCH OLD_BT
+        ON (NEW_BT.BATCH_DT = OLD_BT.BATCH_DT AND NEW_BT.BATCH_CODE = OLD_BT.BATCH_CODE)
+        WHERE NEW_BT.rn = 1
+     ) sp
+     ON (SP.BATCH_DT = TT.BATCH_DT AND SP.BATCH_CODE = TT.BATCH_CODE)
+     WHEN MATCHED THEN
+     UPDATE
+     SET
+            HQ_CODE = SP.HQ_CODE, -- 经营本部
+            AREA_CODE = SP.AREA_CODE, -- 地区
+            DEPT_CODE = SP.DEPT_CODE, -- 网点
+            LAST_END_TM = SP.LAST_END_TM, -- 上一班次计划结束时间
+            PLAN_START_TM = SP.PLAN_START_TM, -- 计划开始时间
+            PLAN_END_TM = SP.PLAN_END_TM, --计划结束时间
+            MAX_LOAD_CNT = SP.MAX_LOAD_CNT, -- 班次最大装车票数
+            MAX_BATCH_DATE = SP.MAX_BATCH_DATE, -- 班次最大装车票数产生日期
+            BATCH_POLL_ABILITY = SP.BATCH_POLL_ABILITY, -- 班次大件处理能力（大件+小件包）
+            POLL_PIECE_RATIO = SP.POLL_PIECE_RATIO, -- 票件比
+            DATA_TM = SYSDATE
+    WHEN NOT MATCHED THEN
+    INSERT(
+        BATCH_DT,
+        HQ_CODE,
+        AREA_CODE,
+        DEPT_CODE,
+        LAST_END_TM, -- 上一班次计划结束时间
+        BATCH_CODE, -- 班次编码
+        PLAN_START_TM, -- 计划开始时间
+        PLAN_END_TM, -- --计划结束时间
+        MAX_LOAD_CNT, -- 班次最大装车票数
+        MAX_BATCH_DATE, -- 班次最大装车票数产生日期
+        BATCH_POLL_ABILITY, -- 班次大件处理能力（大件+小件包）
+        POLL_PIECE_RATIO, -- 票件比
+        DATA_TM)
+     values
+       (SP.BATCH_DT,
+        SP.HQ_CODE,
+        SP.AREA_CODE,
+        SP.DEPT_CODE,
+        SP.LAST_END_TM, -- 上一班次计划结束时间
+        SP.BATCH_CODE, -- 班次编码
+        SP.PLAN_START_TM, -- 计划开始时间
+        SP.PLAN_END_TM,  --计划结束时间
+        SP.MAX_LOAD_CNT, -- 班次最大装车票数
+        SP.MAX_BATCH_DATE, -- 班次最大装车票数产生日期
+        SP.BATCH_POLL_ABILITY, -- 班次大件处理能力（大件+小件包）
+        SP.POLL_PIECE_RATIO, -- 票件比
+        SYSDATE);
+    COMMIT;
+
+    --记录结束执行日志
+    SELECT SEQ_LOG.NEXTVAL INTO LOG_ID FROM DUAL;
+    LINE_NO_LOG := 1; --添加日志行号
+    STP_RUNNING_LOG(LOG_ID, --流水号
+                    NULL, --包名
+                    'ABILITY_STANDARD_BATCH_PROC', --过程名
+                    '中转能力标准_班次', --异常描述
+                    'END', --异常备注：BEGIN表示开始 END表示结束
+                    LINE_NO_LOG, --异常行号
+                    CALL_SNO, --调用序号
+                    SYSDATE, --异常时间
+                    NULL, --异常代码
+                    NULL); --邮件接收地址
+  EXCEPTION
+    WHEN OTHERS THEN
+      ROLLBACK;
+      --记录执行发生异常日志
+      SELECT SEQ_LOG.NEXTVAL INTO LOG_ID FROM DUAL;
+      STP_RUNNING_LOG(LOG_ID, --流水号
+                      NULL, --包名
+                      'ABILITY_STANDARD_BATCH_PROC', --过程名
+                      SQLERRM, --异常描述
+                      'ERROR', --异常备注：BEGIN表示开始 END表示结束
+                      LINE_NO_LOG, --异常行号
+                      CALL_SNO, --调用序号
+                      SYSDATE, --异常时间
+                      SQLCODE, --异常代码
+                      'WANGXIAOLONG6@SF-EXPRESS.COM'); --邮件接收地址
+  END;
+
+  /*********************************************************
+  Subject:中转能力CDP标准_班次
+  Version:V3.2
+  Creator:613413
+  CreateDate:2015-06-23
+  LastModifyUser:613413
+  LastModifyDate:2015-06-23
+  *********************************************************/
+  PROCEDURE CDP_ABILITY_BATCH_PROC(V_BEGIN_DAY_NUM NUMBER, V_END_DAY_NUM   NUMBER) IS
+    SUBJECT_CODE VARCHAR2(80) := 'CDP_ABILITY_BATCH_PROC';
+    SUBJECT_NAME VARCHAR2(80) := '中转能力CDP标准_班次';
+    LOG_ID       NUMBER;      -- 日志流水号
+    LINE_NO_LOG  NUMBER := 0; -- 日志行号
+    CALL_SNO     NUMBER;
+    V_TDAY           NUMBER;
+    V_STAT_DATE      DATE;
+  BEGIN
+    SELECT SEQ_LOG.NEXTVAL INTO LOG_ID FROM DUAL;
+    SELECT SEQ_RUNNING_LOG.NEXTVAL INTO CALL_SNO FROM DUAL;
+    --记录开始执行日志
+    STP_RUNNING_LOG(LOG_ID,        --流水号
+                    NULL,          --包名
+                    SUBJECT_CODE,  --过程名
+                    SUBJECT_NAME,  --异常描述
+                    'BEGIN',       --异常备注：BEGIN表示开始 END表示结束
+                    LINE_NO_LOG,   --异常行号
+                    CALL_SNO,      --调用序号
+                    SYSDATE,       --异常时间
+                    NULL,          --异常代码
+                    NULL);         --邮件接收地址
+    -----------------------------------------------
+    FOR K  IN V_BEGIN_DAY_NUM .. V_END_DAY_NUM LOOP
+      SELECT DECODE(TO_CHAR(SYSDATE + K, 'D') - 1,
+                                   '0',
+                                   '7',
+                                   TO_CHAR(SYSDATE + K, 'D') - 1) INTO V_TDAY
+        FROM DUAL;--当天星期
+      V_STAT_DATE:=TRUNC(SYSDATE + K);--当天
+
+      BEGIN
+    MERGE INTO TT_CDP_ABILITY_STANDARD_BATCH TT
+     USING (
+        SELECT V_TDAY BATCH_DT, --适用工作日
+               T.TRANS_BATCH_DATE, --班次日期
+               TM.HQ_CODE, --经营本部
+               TM.AREA_CODE, --地区
+               T.DEPT_CODE, --中转场
+               T.BATCH_CODE, --班次编码
+               TO_NUMBER(TO_CHAR(T.BEGIN_TM,'HH24MI')) PLAN_START_TM, --计划开始时间
+               TO_NUMBER(TO_CHAR(T.END_TM,'HH24MI')) PLAN_END_TM, --计划结束时间
+               T.ACTUAL_ARR_BILL_NUM, --实到票数
+               T.INIT_UN_DEPART_BILL_NUM, --初始未发未装票数
+               NVL(T.ACTUAL_ARR_BILL_NUM, 0) -
+               NVL(T.INIT_UN_DEPART_BILL_NUM, 0) CDP_TRANSIT_ABILITY, --CDP能力标准
+               CASE
+                 WHEN NVL(T.ACTUAL_ARR_BILL_NUM, 0) -
+                      NVL(T.INIT_UN_DEPART_BILL_NUM, 0) -
+                      NVL(A.CDP_MAX_TRANSIT_ABILITY, 0) > 0 THEN
+                  NVL(T.ACTUAL_ARR_BILL_NUM, 0) -
+                  NVL(T.INIT_UN_DEPART_BILL_NUM, 0)
+                 ELSE
+                  NVL(A.CDP_MAX_TRANSIT_ABILITY, 0)
+               END AS CDP_MAX_TRANSIT_ABILITY, --CDP最大能力标准
+               CASE
+                 WHEN NVL(T.ACTUAL_ARR_BILL_NUM, 0) -
+                      NVL(T.INIT_UN_DEPART_BILL_NUM, 0) -
+                      NVL(A.CDP_MAX_TRANSIT_ABILITY, 0) > 0 THEN
+                  T.TRANS_BATCH_DATE
+                 ELSE
+                  A.CDP_MAX_ABILITY_DATE
+               END AS CDP_MAX_ABILITY_DATE --CDP最大能力标准产生日期
+          FROM TT_TRANSIT_DETAIL_BATCH T
+          LEFT JOIN TT_CDP_ABILITY_STANDARD_BATCH A
+            ON A.BATCH_CODE = T.BATCH_CODE
+           AND A.PLAN_START_TM = TO_NUMBER(TO_CHAR(T.BEGIN_TM,'HH24MI'))
+           AND A.PLAN_END_TM = TO_NUMBER(TO_CHAR(T.END_TM,'HH24MI'))
+           AND A.BATCH_DT = V_TDAY
+          LEFT JOIN TM_DEPARTMENT TM
+            ON TM.DEPT_CODE = T.DEPT_CODE
+         WHERE T.TRANS_BATCH_DATE = V_STAT_DATE
+     ) SP
+     ON (SP.BATCH_DT = TT.BATCH_DT
+       AND SP.BATCH_CODE = TT.BATCH_CODE
+       AND SP.PLAN_START_TM = TT.PLAN_START_TM
+       AND SP.PLAN_END_TM = TT.PLAN_END_TM)
+     WHEN MATCHED THEN
+     UPDATE
+     SET
+        TT.HQ_CODE = SP.HQ_CODE, -- 经营本部
+        TT.AREA_CODE = SP.AREA_CODE, -- 地区
+        TT.DEPT_CODE = SP.DEPT_CODE, -- 中转场
+        TT.ACTUAL_ARR_BILL_NUM = SP.ACTUAL_ARR_BILL_NUM,--实到票数
+        TT.INIT_UN_DEPART_BILL_NUM = SP.INIT_UN_DEPART_BILL_NUM,--初始未发未装票数
+        TT.CDP_TRANSIT_ABILITY = SP.CDP_TRANSIT_ABILITY,--CDP能力标准
+        TT.CDP_MAX_TRANSIT_ABILITY = SP.CDP_MAX_TRANSIT_ABILITY,--CDP最大能力标准
+        TT.CDP_MAX_ABILITY_DATE = SP.CDP_MAX_ABILITY_DATE,--CDP最大能力标准产生日期
+        TT.DATA_TM = SYSDATE
+    WHEN NOT MATCHED THEN
+    INSERT(
+      BATCH_DT, --适用工作日
+      HQ_CODE, --经营本部
+      AREA_CODE, --地区
+      DEPT_CODE, --中转场
+      BATCH_CODE, --班次编码
+      PLAN_START_TM, --计划开始时间
+      PLAN_END_TM, --计划结束时间
+      ACTUAL_ARR_BILL_NUM, --实到票数
+      INIT_UN_DEPART_BILL_NUM, --初始未发未装票数
+      CDP_TRANSIT_ABILITY, --CDP能力标准
+      CDP_MAX_TRANSIT_ABILITY, --CDP最大能力标准
+      CDP_MAX_ABILITY_DATE, --CDP最大能力标准产生日期
+      DATA_TM)
+     VALUES
+       (SP.BATCH_DT, --适用工作日
+        SP.HQ_CODE, --经营本部
+        SP.AREA_CODE, --地区
+        SP.DEPT_CODE, --中转场
+        SP.BATCH_CODE, --班次编码
+        SP.PLAN_START_TM, --计划开始时间
+        SP.PLAN_END_TM, --计划结束时间
+        SP.ACTUAL_ARR_BILL_NUM, --实到票数
+        SP.INIT_UN_DEPART_BILL_NUM, --初始未发未装票数
+        SP.CDP_TRANSIT_ABILITY, --CDP能力标准
+        SP.CDP_MAX_TRANSIT_ABILITY, --CDP最大能力标准
+        SP.CDP_MAX_ABILITY_DATE, --CDP最大能力标准产生日期
+        SYSDATE);
+    COMMIT;
+      END;
+    END LOOP;
+    ----------------------------------
+    SELECT SEQ_LOG.NEXTVAL INTO LOG_ID FROM DUAL;
+    LINE_NO_LOG := 1;              --添加日志行号
+    STP_RUNNING_LOG(LOG_ID,        --流水号
+                    NULL,          --包名
+                    SUBJECT_CODE,  --过程名
+                    SUBJECT_NAME,  --异常描述
+                    'END',         --异常备注：BEGIN表示开始 END表示结束
+                    LINE_NO_LOG,   --异常行号
+                    CALL_SNO,      --调用序号
+                    SYSDATE,       --异常时间
+                    NULL,          --异常代码
+                    NULL);         --邮件接收地址
+  EXCEPTION
+    WHEN OTHERS THEN
+      ROLLBACK;
+      --记录执行发生异常日志
+      SELECT SEQ_LOG.NEXTVAL INTO LOG_ID FROM DUAL;
+      STP_RUNNING_LOG(LOG_ID,                     --流水号
+                      NULL,                       --包名
+                      SUBJECT_CODE,               --过程名
+                      SQLERRM,                    --异常描述
+                      'ERROR',                    --异常备注：BEGIN表示开始 END表示结束
+                      LINE_NO_LOG,                --异常行号
+                      CALL_SNO,                   --调用序号
+                      SYSDATE,                    --异常时间
+                      SQLCODE,                    --异常代码
+                      'JINGLUO@SF-EXPRESS.COM');  --邮件接收地址
+  END;
+
+
+  /*********************************************************
+  Subject:中转能力CDP标准_中转场
+  Version:V3.2
+  Creator:613413
+  CreateDate:2015-06-23
+  LastModifyUser:613413
+  LastModifyDate:2015-06-23
+  *********************************************************/
+  PROCEDURE CDP_ABILITY_DEPT_PROC(V_BEGIN_DAY_NUM NUMBER, V_END_DAY_NUM   NUMBER) IS
+    SUBJECT_CODE VARCHAR2(80) := 'CDP_ABILITY_DEPT_PROC';
+    SUBJECT_NAME VARCHAR2(80) := '中转能力CDP标准_中转场';
+    LOG_ID       NUMBER;      -- 日志流水号
+    LINE_NO_LOG  NUMBER := 0; -- 日志行号
+    CALL_SNO     NUMBER;
+    V_TDAY           NUMBER;
+    V_STAT_DATE      DATE;
+  BEGIN
+    SELECT SEQ_LOG.NEXTVAL INTO LOG_ID FROM DUAL;
+    SELECT SEQ_RUNNING_LOG.NEXTVAL INTO CALL_SNO FROM DUAL;
+    --记录开始执行日志
+    STP_RUNNING_LOG(LOG_ID,        --流水号
+                    NULL,          --包名
+                    SUBJECT_CODE,  --过程名
+                    SUBJECT_NAME,  --异常描述
+                    'BEGIN',       --异常备注：BEGIN表示开始 END表示结束
+                    LINE_NO_LOG,   --异常行号
+                    CALL_SNO,      --调用序号
+                    SYSDATE,       --异常时间
+                    NULL,          --异常代码
+                    NULL);         --邮件接收地址
+    -----------------------------------------------
+    FOR K  IN V_BEGIN_DAY_NUM .. V_END_DAY_NUM LOOP
+      SELECT DECODE(TO_CHAR(SYSDATE + K, 'D') - 1,
+                                   '0',
+                                   '7',
+                                   TO_CHAR(SYSDATE + K, 'D') - 1) INTO V_TDAY
+        FROM DUAL;--当天星期
+      V_STAT_DATE:=TRUNC(SYSDATE + K);--当天
+
+      BEGIN
+    MERGE INTO TT_CDP_ABILITY_STANDARD_DEPT TT
+     USING (
+        SELECT V_TDAY BATCH_DT, --适用工作日
+               T1.TRANS_BATCH_DATE, --班次日期
+               TM.HQ_CODE, --经营本部
+               TM.AREA_CODE, --地区
+               T1.DEPT_CODE, --中转场
+               T1.ACTUAL_ARR_BILL_NUM, --实到票数
+               T1.INIT_UN_DEPART_BILL_NUM, --初始未发未装票数
+               T1.CDP_TRANSIT_ABILITY, --CDP能力标准
+               CASE
+                 WHEN NVL(T1.CDP_TRANSIT_ABILITY, 0) -
+                      NVL(T2.CDP_MAX_TRANSIT_ABILITY, 0) > 0 THEN
+                  NVL(T1.CDP_TRANSIT_ABILITY, 0)
+                 ELSE
+                  NVL(T2.CDP_MAX_TRANSIT_ABILITY, 0)
+               END AS CDP_MAX_TRANSIT_ABILITY, --CDP最大能力标准
+               CASE
+                 WHEN NVL(T1.CDP_TRANSIT_ABILITY, 0) -
+                      NVL(T2.CDP_MAX_TRANSIT_ABILITY, 0) > 0 THEN
+                  T1.TRANS_BATCH_DATE
+                 ELSE
+                  T2.CDP_MAX_ABILITY_DATE
+               END AS CDP_MAX_ABILITY_DATE --CDP最大能力标准产生日期
+          FROM (
+          SELECT V_TDAY BATCH_DT, --适用工作日
+                 T.TRANS_BATCH_DATE, --班次日期
+                 T.DEPT_CODE, --中转场
+                 SUM(T.ACTUAL_ARR_BILL_NUM) ACTUAL_ARR_BILL_NUM, --实到票数
+                 SUM(T.INIT_UN_DEPART_BILL_NUM) INIT_UN_DEPART_BILL_NUM, --初始未发未装票数
+                 NVL(SUM(T.ACTUAL_ARR_BILL_NUM), 0) -
+                 NVL(SUM(T.INIT_UN_DEPART_BILL_NUM), 0) CDP_TRANSIT_ABILITY --CDP能力标准
+            FROM TT_TRANSIT_DETAIL_BATCH T
+           WHERE T.TRANS_BATCH_DATE = V_STAT_DATE
+           GROUP BY T.TRANS_BATCH_DATE,T.DEPT_CODE) T1
+          LEFT JOIN TT_CDP_ABILITY_STANDARD_DEPT T2
+            ON T2.DEPT_CODE = T1.DEPT_CODE
+           AND T2.BATCH_DT = V_TDAY
+          LEFT JOIN TM_DEPARTMENT TM
+            ON TM.DEPT_CODE = T1.DEPT_CODE
+     ) SP
+     ON (SP.BATCH_DT = TT.BATCH_DT
+       AND SP.DEPT_CODE = TT.DEPT_CODE)
+     WHEN MATCHED THEN
+     UPDATE
+     SET
+        TT.HQ_CODE = SP.HQ_CODE, -- 经营本部
+        TT.AREA_CODE = SP.AREA_CODE, -- 地区
+        TT.ACTUAL_ARR_BILL_NUM = SP.ACTUAL_ARR_BILL_NUM,--实到票数
+        TT.INIT_UN_DEPART_BILL_NUM = SP.INIT_UN_DEPART_BILL_NUM,--初始未发未装票数
+        TT.CDP_TRANSIT_ABILITY = SP.CDP_TRANSIT_ABILITY,--CDP能力标准
+        TT.CDP_MAX_TRANSIT_ABILITY = SP.CDP_MAX_TRANSIT_ABILITY,--CDP最大能力标准
+        TT.CDP_MAX_ABILITY_DATE = SP.CDP_MAX_ABILITY_DATE,--CDP最大能力标准产生日期
+        TT.DATA_TM = SYSDATE
+    WHEN NOT MATCHED THEN
+    INSERT(
+      BATCH_DT, --适用工作日
+      HQ_CODE, --经营本部
+      AREA_CODE, --地区
+      DEPT_CODE, --中转场
+      ACTUAL_ARR_BILL_NUM, --实到票数
+      INIT_UN_DEPART_BILL_NUM, --初始未发未装票数
+      CDP_TRANSIT_ABILITY, --CDP能力标准
+      CDP_MAX_TRANSIT_ABILITY, --CDP最大能力标准
+      CDP_MAX_ABILITY_DATE, --CDP最大能力标准产生日期
+      DATA_TM)
+     VALUES
+       (SP.BATCH_DT, --适用工作日
+        SP.HQ_CODE, --经营本部
+        SP.AREA_CODE, --地区
+        SP.DEPT_CODE, --中转场
+        SP.ACTUAL_ARR_BILL_NUM, --实到票数
+        SP.INIT_UN_DEPART_BILL_NUM, --初始未发未装票数
+        SP.CDP_TRANSIT_ABILITY, --CDP能力标准
+        SP.CDP_MAX_TRANSIT_ABILITY, --CDP最大能力标准
+        SP.CDP_MAX_ABILITY_DATE, --CDP最大能力标准产生日期
+        SYSDATE);
+    COMMIT;
+      END;
+    END LOOP;
+    ----------------------------------
+    SELECT SEQ_LOG.NEXTVAL INTO LOG_ID FROM DUAL;
+    LINE_NO_LOG := 1;              --添加日志行号
+    STP_RUNNING_LOG(LOG_ID,        --流水号
+                    NULL,          --包名
+                    SUBJECT_CODE,  --过程名
+                    SUBJECT_NAME,  --异常描述
+                    'END',         --异常备注：BEGIN表示开始 END表示结束
+                    LINE_NO_LOG,   --异常行号
+                    CALL_SNO,      --调用序号
+                    SYSDATE,       --异常时间
+                    NULL,          --异常代码
+                    NULL);         --邮件接收地址
+  EXCEPTION
+    WHEN OTHERS THEN
+      ROLLBACK;
+      --记录执行发生异常日志
+      SELECT SEQ_LOG.NEXTVAL INTO LOG_ID FROM DUAL;
+      STP_RUNNING_LOG(LOG_ID,                     --流水号
+                      NULL,                       --包名
+                      SUBJECT_CODE,               --过程名
+                      SQLERRM,                    --异常描述
+                      'ERROR',                    --异常备注：BEGIN表示开始 END表示结束
+                      LINE_NO_LOG,                --异常行号
+                      CALL_SNO,                   --调用序号
+                      SYSDATE,                    --异常时间
+                      SQLCODE,                    --异常代码
+                      'JINGLUO@SF-EXPRESS.COM');  --邮件接收地址
+  END;
+
+END PKG_CDP_ABILITY_STANDARD;
